@@ -124,9 +124,46 @@ def prepare_data(samples, fixed_width=200):
     X_feat = np.array(X_feat_list)
     y_arr = np.array(y_list)
     return X_spec, X_feat, y_arr
-
 ##############################################################################
-# 2. Model ResNet
+# 2. Augmentare audio simplă (opțional)
+##############################################################################
+
+def augment_audio_simple(y, sr):
+    """
+    - Time stretching (0.95-1.05, p=0.5)
+    - Pitch shifting (±0.1 semitonuri, p=0.3)
+    """
+    # Time stretching
+    if random.random() < 0.5:
+        rate = random.uniform(0.95, 1.05)
+        y = librosa.effects.time_stretch(y, rate=rate)
+    # Pitch shifting
+    if random.random() < 0.3:
+        n_steps = random.uniform(-0.1, 0.1)
+        y = librosa.effects.pitch_shift(y=y, sr=sr, n_steps=n_steps)
+    return y
+
+def create_augmented_dataset(samples, augment_factor=1):
+    """
+    Pentru fiecare eșantion, adaugă varianta originală și 'augment_factor' copii augmentate.
+    """
+    augmented_samples = []
+    for sample in samples:
+        y_original = sample['audio']
+        sr = sample['sr']
+        label = sample['label']
+        
+        # Varianta originală
+        augmented_samples.append({'audio': y_original, 'sr': sr, 'label': label})
+        
+        # Variante augmentate
+        for _ in range(augment_factor):
+            y_aug = augment_audio_simple(y_original, sr)
+            augmented_samples.append({'audio': y_aug, 'sr': sr, 'label': label})
+    
+    return augmented_samples
+##############################################################################
+# 3. Model ResNet
 ##############################################################################
 
 def build_resnet_branch(input_tensor):
@@ -181,7 +218,7 @@ def build_model(input_shape_spec, input_shape_feat, lr=0.0003):
     return model
 
 ##############################################################################
-# 3. Cross-Validation
+# 4. Cross-Validation
 ##############################################################################
 
 def cross_validate_model(X_spec, X_feat, y, n_folds=5, epochs=25, batch_size=16, lr=0.0003):
@@ -227,7 +264,7 @@ def cross_validate_model(X_spec, X_feat, y, n_folds=5, epochs=25, batch_size=16,
     return r2_scores
 
 ##############################################################################
-# 4. Flux Principal
+# 5. Flux Principal
 ##############################################################################
 
 # 1. Încărcare date train + test => combined_samples
